@@ -15,12 +15,25 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
   final GestorIncidencias g = GestorIncidencias();
   bool cargando = true;
   String? error;
+  
+  // Variables para los filtros
   String busqueda = '';
+  String filtroEstado = 'Todos';
+  String filtroPrioridad = 'Todas';
+  
+  // Controlador para el campo de texto (para poder limpiarlo)
+  final TextEditingController _controladorBusqueda = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     cargar();
+  }
+
+  @override
+  void dispose() {
+    _controladorBusqueda.dispose();
+    super.dispose();
   }
 
   Future<void> cargar() async {
@@ -82,9 +95,21 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
     }
   }
 
+  // Función para restablecer los filtros
+  void limpiarFiltros() {
+    setState(() {
+      busqueda = '';
+      _controladorBusqueda.clear();
+      filtroEstado = 'Todos';
+      filtroPrioridad = 'Todas';
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final items = g.buscar(busqueda);
+    // LLAMADA ACTUALIZADA CON LOS TRES PARÁMETROS
+    final items = g.buscar(busqueda, filtroEstado, filtroPrioridad);
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('NexaSoft | Incidencias'),
@@ -140,6 +165,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
                     constraints: const BoxConstraints(maxWidth: 860),
                     child: Column(
                       children: [
+                        // 1. Tarjetas superiores
                         Padding(
                           padding: const EdgeInsets.fromLTRB(12, 14, 12, 8),
                           child: Row(children: [
@@ -148,9 +174,12 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
                             resumen('Resueltas', '${g.contar('Resuelta')}', Icons.check_circle_outline),
                           ]),
                         ),
+                        
+                        // 2. Buscador de texto
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 5),
                           child: TextField(
+                            controller: _controladorBusqueda,
                             decoration: const InputDecoration(
                               labelText: 'Buscar incidencias',
                               hintText: 'Ejemplo: WiFi, correo, pantalla',
@@ -160,6 +189,55 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
                             onChanged: (texto) => setState(() => busqueda = texto),
                           ),
                         ),
+                        
+                        // 3. NUEVA SECCIÓN DE FILTROS (FEAT-002)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 5),
+                          child: Row(
+                            children: [
+                              // Filtro de estado
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  decoration: const InputDecoration(
+                                    labelText: 'Estado',
+                                    border: OutlineInputBorder(),
+                                    isDense: true,
+                                  ),
+                                  value: filtroEstado,
+                                  items: ['Todos', 'Pendiente', 'En proceso', 'Resuelta']
+                                      .map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                                  onChanged: (val) => setState(() => filtroEstado = val!),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              
+                              // Filtro de prioridad
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  decoration: const InputDecoration(
+                                    labelText: 'Prioridad',
+                                    border: OutlineInputBorder(),
+                                    isDense: true,
+                                  ),
+                                  value: filtroPrioridad,
+                                  items: ['Todas', 'Baja', 'Media', 'Alta']
+                                      .map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
+                                  onChanged: (val) => setState(() => filtroPrioridad = val!),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              
+                              // Botón de limpiar filtros
+                              IconButton(
+                                icon: const Icon(Icons.filter_alt_off),
+                                tooltip: 'Limpiar filtros',
+                                onPressed: limpiarFiltros,
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // 4. Contador de resultados
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                           child: Align(
@@ -167,9 +245,21 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
                             child: Text('${items.length} registros', style: const TextStyle(color: Colors.black54)),
                           ),
                         ),
+                        
+                        // 5. Lista de resultados o mensaje de lista vacía
                         Expanded(
                           child: items.isEmpty
-                              ? const Center(child: Text('No se encontraron incidencias'))
+                              ? const Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.search_off, size: 64, color: Colors.black26),
+                                      SizedBox(height: 16),
+                                      Text('No hay incidencias que coincidan con estos filtros.',
+                                          style: TextStyle(color: Colors.black54, fontSize: 16)),
+                                    ],
+                                  ),
+                                )
                               : ListView.builder(
                                   padding: const EdgeInsets.only(left: 12, right: 12, bottom: 100),
                                   itemCount: items.length,
@@ -187,7 +277,6 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
                                             children: [
                                               Text('${item.id}  ·  ${item.cliente}'),
                                               const SizedBox(height: 6),
-                                              // <-- CAMBIO REALIZADO AQUÍ PARA MOSTRAR LA PRIORIDAD
                                               Row(
                                                 children: [
                                                   Text(item.estado, style: TextStyle(
